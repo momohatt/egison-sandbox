@@ -1,0 +1,28 @@
+(define $monomial (multiset [string integer]))
+(define $polynomial (multiset [integer monomial]))
+
+; x - 1
+; y - 2
+; z - x - y
+(define $f1 {[1 {["x" 1]}] [-1 {}]})
+(define $f2 {[1 {["y" 1]}] [-2 {}]})
+(define $f3 {[1 {["z" 1]}] [-1 {["x" 1]}] [-1 {["y" 1]}]})
+
+(define $show-mono
+  (lambda [$mono]
+    (S.intercalate " "
+      (map
+        (match-lambda [string integer]
+          {[[$x ,1] x]
+           [[$x $i] (S.concat {x "**" (show i)})]})
+        mono))))
+
+(define $show-poly
+  (lambda [$poly]
+    (S.intercalate " + "
+       (map
+         (match-lambda [integer monomial]
+           {[[,1 $x] (show-mono x)]
+            [[,-1 $x] (S.append "-" (show-mono x))]
+            [[$c $x] (S.append (show c) (show-mono x))]})
+         poly))))
