@@ -1,21 +1,50 @@
-(define $monomial (multiset [string integer]))
-(define $polynomial (multiset [integer monomial]))
+(define $monomial
+  (matcher
+    {[<degree $> [integer]
+      {[$tgt {(length tgt)}]}]
+     [<power ,$x $> [integer]
+      {[$tgt (match tgt (multiset string)
+               {[(loop $i [1 $n]
+                       <cons ,x ...>
+                       !<cons ,x _>) {n}]})]}]
+     [<mult ,$val $> [monomial]
+      {[$tgt {(difference tgt val)}]}]
+     [<mult $ $> [monomial monomial]
+      {[$tgt (unique (match-all tgt (multiset string)
+                       [<join $xs $ys> [xs ys]]))]}]
+     [<cons $ $> [string monomial]
+      {[$tgt (unique tgt)]}]
+     [$ (multiset string)
+      {[$tgt {tgt}]}]
+     }))
+
+(define $polynomial
+  (matcher
+    {[$ (multiset [integer monomial])
+      {[$tgt {tgt}]}]
+     }))
 
 ; x - 1
 ; y - 2
 ; z - x - y
-(define $f1 {[1 {["x" 1]}] [-1 {}]})
-(define $f2 {[1 {["y" 1]}] [-2 {}]})
-(define $f3 {[1 {["z" 1]}] [-1 {["x" 1]}] [-1 {["y" 1]}]})
+(define $f1 {[1 {"x"}] [-1 {}]})
+(define $f2 {[1 {"y"}] [-2 {}]})
+(define $f3 {[1 {"z"}] [-1 {"x"}] [-1 {"y"}]})
+
+; x^2 - 2
+; y^2 - 3
+; z - x - y
+(define $f4 {[1 {"x" "x"}] [-2 {}]})
+(define $f5 {[1 {"y" "y"}] [-3 {}]})
+(define $f6 f3)
+
+; ==============================================================================
 
 (define $show-mono
   (lambda [$mono]
     (S.intercalate " "
-      (map
-        (match-lambda [string integer]
-          {[[$x ,1] x]
-           [[$x $i] (S.concat {x "**" (show i)})]})
-        mono))))
+      (match-all mono monomial
+        {[(& <cons $x _> <power ,x $n>) (S.concat {x "**" (show n)})]}))))
 
 (define $show-poly
   (lambda [$poly]
