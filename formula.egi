@@ -10,6 +10,7 @@
      [<mult ,$val $> [monomial]
       {[$tgt {(difference tgt val)}]}]
      [<mult $ $> [monomial monomial]
+      ; TODO: is there more efficient implementation without unique?
       {[$tgt (unique (match-all tgt (multiset string)
                        [<join $xs $ys> [xs ys]]))]}]
      [<cons $ $> [string monomial]
@@ -20,23 +21,45 @@
 
 (define $polynomial
   (matcher
-    {[$ (multiset [integer monomial])
+    {[<occur $> [monomial]
+      {[$tgt (map snd tgt)]}]
+     [<head $ $> [integer monomial]
+      {[$tgt {(max/fn (lambda [$m1 $m2] (ord-mono (snd m1) (snd m2))) tgt)}]}]
+     [$ (multiset [integer monomial])
       {[$tgt {tgt}]}]
      }))
+
+(define $ord-mono
+  (match-lambda [monomial monomial]
+    {[[<degree $n1> <degree $n2>]
+      (compare n1 n2)]}))
+
+; ==============================================================================
+
+(define $x "x")
+(define $y "y")
+(define $z "z")
 
 ; x - 1
 ; y - 2
 ; z - x - y
-(define $f1 {[1 {"x"}] [-1 {}]})
-(define $f2 {[1 {"y"}] [-2 {}]})
-(define $f3 {[1 {"z"}] [-1 {"x"}] [-1 {"y"}]})
+(define $f1 {[1 {x}] [-1 {}]})
+(define $f2 {[1 {y}] [-2 {}]})
+(define $f3 {[1 {z}] [-1 {x}] [-1 {y}]})
 
 ; x^2 - 2
 ; y^2 - 3
 ; z - x - y
-(define $f4 {[1 {"x" "x"}] [-2 {}]})
-(define $f5 {[1 {"y" "y"}] [-3 {}]})
+(define $f4 {[1 {x x}] [-2 {}]})
+(define $f5 {[1 {y y}] [-3 {}]})
 (define $f6 f3)
+
+; 2 x^2 y - x y^2 + 5 x + 17
+(define $f7 {[2 {x x y}] [-1 {x y y}] [5 {x}] [17 {}]})
+
+(assert-equal "occur"
+  (match-all f7 polynomial [<occur $m> m])
+  {{"x" "x" "y"} {"x" "y" "y"} {"x"} {}})
 
 ; ==============================================================================
 
@@ -44,7 +67,11 @@
   (lambda [$mono]
     (S.intercalate " "
       (match-all mono monomial
-        {[(& <cons $x _> <power ,x $n>) (S.concat {x "**" (show n)})]}))))
+        {[(& <cons $x _> <power ,x $n>)
+          (if (eq? n 1)
+              x
+              (S.concat {x "^" (show n)}))]
+         [<nil> "1"]}))))
 
 (define $show-poly
   (lambda [$poly]
