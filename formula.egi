@@ -51,7 +51,16 @@
       [(* c1 c2) {@m1 @m2}]]
      }))
 
-(define $plus append)
+(define $plus
+  (match-all-lambda [polynomial polynomial]
+    {[[<cons [$c1 $m1] _> !<cons [_ ,m1] _>] [c1 m1]]
+     [[<cons [$c1 $m1] _> <cons [$c2 ,m1] _>] [(+ c1 c2) m1]]
+     [[(later !<cons [_ ,m2] _>) <cons [$c2 $m2] _>] [c2 m2]]
+     }))
+
+(assert "plus"
+  (match (plus {[2 {x y}] [-1 {x}]} {[1 {x y}] [-1 {y}]}) (multiset something)
+    {[,{[-1 {x}] [3 {x y}] [-1 {y}]} #t]}))
 
 (define $rewrite
   (lambda [$eqs $poly]
@@ -60,7 +69,9 @@
         (plus rs (mult [a m'] (negate (non-heads rule))))]
        })))
 
-(rewrite {f1 f2} {[1 {x x y y}]})
+(assert-equal "rewrite"
+  (rewrite {f1 f2} {[1 {x x y y}]})
+  {[1 {y x x}]})
 
 ; ==============================================================================
 
