@@ -114,7 +114,7 @@
           (match h polynomial
             {[<nil> (buchberger-loop pairs' fs)]
              [<head $c _>
-              (let* {[$h' (mult [c {}] h)]
+              (let* {[$h' (mult [(/ 1 c) {}] h)]
                      [$new-pairs (map (lambda $x [x h']) fs)]}
                 (buchberger-loop {@pairs' @new-pairs}
                                  (cons (debug/fn show-poly h') fs)))]}))]
