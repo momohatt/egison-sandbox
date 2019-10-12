@@ -72,6 +72,10 @@
     (let {[$poly' (rewrite eqs poly)]}
       (if (eq?/m polynomial poly poly') poly (normalize eqs poly')))))
 
+(define $joinable?
+  (lambda [$eqs $poly]
+    (eq? (normalize eqs poly) {})))
+
 (assert-equal "rewrite"
   (rewrite {f1 f2} {[1 {x x y y}]})
   {[1 {y x x}]})
@@ -121,9 +125,15 @@
     (match-all fs (list something)
       {[<join _ <cons $f1 <join _ <cons $f2 _>>>> [f1 f2]]})))
 
+(define $interreduce
+  (match-lambda (multiset polynomial)
+    {[<cons $f (& ?(joinable? $ f) $other)>
+      (interreduce other)]
+     [$fs fs]}))
+
 (define $buchberger
   (lambda [$fs]
-    (buchberger-loop (all-pairs fs) fs)))
+    (interreduce (buchberger-loop (all-pairs fs) fs))))
 
 ; ==============================================================================
 
@@ -156,6 +166,7 @@
          (match-lambda [integer monomial]
            {[[,1 $x] (show-mono x)]
             [[,-1 $x] (S.append "-" (show-mono x))]
+            [[$c <nil>] (show c)]
             [[$c $x] (S.append (show c) (show-mono x))]})
          poly))))
 
