@@ -67,7 +67,12 @@
     (match [eqs poly] [(multiset polynomial) polynomial]
       {[[<cons (& $rule <head ,1 $hf>) _> <cons [$a <mult ,hf $m'>] $rs>]
         (plus rs (mult [a m'] (negate (non-heads rule))))]
-       })))
+       [_ poly]})))
+
+(define $normalize
+  (lambda [$eqs $poly]
+    (let {[$poly' (rewrite eqs poly)]}
+      (if (eq? poly poly') poly (normalize eqs poly')))))
 
 (assert-equal "rewrite"
   (rewrite {f1 f2} {[1 {x x y y}]})
