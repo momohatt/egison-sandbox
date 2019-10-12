@@ -9,14 +9,15 @@
                {[(loop $i [1 $n]
                        <cons ,x ...>
                        !<cons ,x _>) {n}]})]}]
+     [<power $ $> [symbol integer]
+      {[$tgt (match-all [(unique tgt) tgt] [(multiset symbol) monomial]
+               {[[<cons $x _> <power ,x $n>] [x n]]})]}]
      [<mult ,$val $> [monomial]
       {[$tgt {(difference tgt val)}]}]
      [<mult $ $> [monomial monomial]
       ; TODO: is there more efficient implementation without unique?
       {[$tgt (unique (match-all tgt (multiset symbol)
                        [<join $xs $ys> [xs ys]]))]}]
-     [<cons $ $> [symbol monomial]
-      {[$tgt (unique tgt)]}]
      [$ (multiset symbol)
       {[$tgt {tgt}]}]
      }))
@@ -54,7 +55,7 @@
 (define $plus
   (match-all-lambda [polynomial polynomial]
     {[[<cons [$c1 $m1] _> !<cons [_ ,m1] _>] [c1 m1]]
-     [[<cons [$c1 $m1] _> <cons [$c2 ,m1] _>] [(+ c1 c2) m1]]
+     [[<cons [$c1 $m1] _> <cons [(& !,(neg c1) $c2) ,m1] _>] [(+ c1 c2) m1]]
      [[(later !<cons [_ ,m2] _>) <cons [$c2 $m2] _>] [c2 m2]]
      }))
 
@@ -78,10 +79,30 @@
   (rewrite {f1 f2} {[1 {x x y y}]})
   {[1 {y x x}]})
 
+; ========================== Buchberger's algorithm ============================
+
+(define $replicate
+  (lambda [$n $x] (take n (repeat1 x))))
+
+(define $lcm
+  (lambda [$m1 $m2]
+    (concat
+      (match-all [m1 m2] [monomial monomial]
+        {[[<power $x $n1> <power ,x $n2>] (replicate (max {n1 n2}) x)]
+         [[(later <power ,x ,0>) <power $x $n>] (replicate n x)]}))))
+
+(define $s-polynomial
+  (lambda [$f1 $f2]
+    (match [f1 f2] [polynomial polynomial]
+      {[[<head ,1 $h1> <head ,1 $h2>]
+        (match (lcm h1 h2) monomial
+          {[(& <mult ,h1 $m1> <mult ,h2 $m2>)
+            (plus (mult [1 m1] f1) (mult [-1 m2] f2))]})]})))
+
 ; ==============================================================================
 
-(define $f1 {[1 {x x y}] [-1 {x x}]})
-(define $f2 {[1 {x y y}] [-1 {y y}]})
+(define $f1 {[1 {x x y}] [-1 {x x}]}) ; x^2 y - x^2
+(define $f2 {[1 {x y y}] [-1 {y y}]}) ; x y^2 - y^2
 
 ; 2 x^2 y - x y^2 + 5 x + 17
 (define $f3 {[2 {x x y}] [-1 {x y y}] [5 {x}] [17 {}]})
