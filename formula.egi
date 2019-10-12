@@ -15,10 +15,6 @@
      [<mult ,$val $> [monomial]
       {[$tgt (match-all tgt (multiset symbol)
                [<join ,val $rest> rest])]}]
-     [<mult $ $> [monomial monomial]
-      ; TODO: is there more efficient implementation without unique?
-      {[$tgt (unique (match-all tgt (multiset symbol)
-                       [<join $xs $ys> [xs ys]]))]}]
      [$ (multiset symbol)
       {[$tgt {tgt}]}]
      }))
@@ -109,15 +105,15 @@
     (match pairs (list [polynomial polynomial])
       {[<nil> fs]
        [<cons [$p1 $p2] $pairs'>
-        (let* {[$s (s-polynomial p1 p2)]
-               [$h (normalize fs s)]}
+        (let {[$h (normalize fs (s-polynomial p1 p2))]}
           (match h polynomial
             {[<nil> (buchberger-loop pairs' fs)]
              [<head $c _>
               (let* {[$h' (mult [(/ 1 c) {}] h)]
                      [$new-pairs (map (lambda $x [x h']) fs)]}
                 (buchberger-loop {@pairs' @new-pairs}
-                                 (cons (debug/fn show-poly h') fs)))]}))]
+                                 (cons (debug/fn show-poly h') fs)))]
+             }))]
        })))
 
 (define $all-pairs
