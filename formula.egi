@@ -190,16 +190,38 @@
               (S.concat {(show x) "^" (show n)}))]
          [<nil> "1"]}))))
 
+(define $show-coeff-mono
+  (lambda [$c $x]
+    (match [c x] [integer monomial]
+      {[[,1         <nil>] "+ 1"]
+       [[,-1        <nil>] "- 1"]
+       [[?(gt? $ 0) <nil>] (S.append "+ " (show c))]
+       [[?(lt? $ 0) <nil>] (S.append "- " (show (neg c)))]
+       [[,1         $x]    (S.append "+ " (show-mono x))]
+       [[,-1        $x]    (S.append "- " (show-mono x))]
+       [[?(gt? $ 0) $x]    (S.concat {"+ " (show c) (show-mono x)})]
+       [[?(lt? $ 0) $x]    (S.concat {"- " (show (neg c)) (show-mono x)})]
+       })))
+
+(define $show-coeff-mono-head
+  (lambda [$c $x]
+    (match [c x] [integer monomial]
+      {[[,1         <nil>] "1"]
+       [[,-1        <nil>] "- 1"]
+       [[?(gt? $ 0) <nil>] (show c)]
+       [[?(lt? $ 0) <nil>] (S.append "- " (show (neg c)))]
+       [[,1         $x]    (show-mono x)]
+       [[,-1        $x]    (S.append "- " (show-mono x))]
+       [[?(gt? $ 0) $x]    (S.append (show c) (show-mono x))]
+       [[?(lt? $ 0) $x]    (S.concat {"- " (show (neg c)) (show-mono x)})]
+       })))
+
 (define $show-poly
-  (lambda [$poly]
-    (S.intercalate " + "
-       (map
-         (match-lambda [integer monomial]
-           {[[,1 $x] (show-mono x)]
-            [[,-1 $x] (S.append "-" (show-mono x))]
-            [[$c <nil>] (show c)]
-            [[$c $x] (S.append (show c) (show-mono x))]})
-         poly))))
+  (match-lambda (list [integer monomial])
+    {[<nil> "0"]
+     [<cons $x $xs>
+      (let {[$first (show-coeff-mono-head x)]}
+        (S.intercalate " " {first @(map show-coeff-mono xs)}))]}))
 
 (define $debug/fn
   (macro [$show $x]
