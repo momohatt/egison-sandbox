@@ -1,5 +1,8 @@
 # Gröbner basis in Egison
 
+## Requirement
+Egison >= 3.9.1
+
 ## How to run Buchberger's algorithm
 ```
 $ egison -l formula.egi
