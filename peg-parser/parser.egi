@@ -29,6 +29,8 @@
                {[(L.char ,c#\\ (L.ident $x (L.string ,"->" <expr' $e $p>)))
                  {[<Lam x e> p]}]
                 [_ {}]})]}]
+
+     ; TODO(momohatt): Fix this to left associative
      [<opExpr1 $ $> [expr parser]
       {[$tgt (match tgt parser
                {[<opExpr2 $n (L.char ,c#+ <opExpr1 $m $p>)>
@@ -46,7 +48,7 @@
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
                {[(L.number $n $p) {[<Int n> p]}]
-                [(L.ident $n $p) {[n p]}]
+                [(L.ident $n $p)  {[<Var n> p]}]
                 [(L.string ,"(" <expr' $n (L.string ,")" $p)>) {[n p]}]
                 [_ {}]})]}]
 
@@ -103,4 +105,4 @@
   <Mul <Add <Int 1> <Int 2>> <Int 3>>)
 (assert-equal "parser"
   (match "\\x -> \\y -> x + y" parser {[<expr' $n <eof>> n]})
-  <Lam "x" <Lam "y" <Add "x" "y">>>)
+  <Lam "x" <Lam "y" <Add <Var "x"> <Var "y">>>>)
