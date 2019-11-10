@@ -3,36 +3,35 @@
 (define $whitespace?
   (lambda [$c] (any (eq? $ c) {c#  c#\n c#\t})))
 
+(define $expr
+  (algebraic-data-matcher
+    {<add expr expr> <int integer>}))
+
+(define $L.number (pattern-function [$x $p] <parse-number x <sc p>>))
+(define $L.char   (pattern-function [$x $p] <parse-char   x <sc p>>))
+(define $L.string (pattern-function [$x $p] <parse-string x <sc p>>))
+
 (define $parser
   (matcher
-    {[<number $ $> [integer parser]
-      {[$tgt (match tgt token
-               {[<number $n <sc $p>> {[n p]}]
+    {[<expr1 $ $> [expr parser]
+      {[$tgt (match tgt parser
+               {[(L.number $n (L.char ,c#+ <expr1 $m $p>))
+                 {[<Add <Int n> m> p]}]
+                [(L.number $n $p)
+                 {[<Int n> p]}]
                 [_ {}]})]}]
-     [<eof> []
-      {[$tgt (match tgt token
-               {[<eof> {[]}]
-                [_ {}]})]}]
-     }))
-
-(define $L.number (pattern-function [$x $p] <token-number x <sc p>>))
-(define $L.char   (pattern-function [$x $p] <token-char x   <sc p>>))
-(define $L.string (pattern-function [$x $p] <token-string x <sc p>>))
-
-(define $token
-  (matcher
-    {[<token-number $ $> [integer token]
+     [<parse-number $ $> [integer parser]
       {[$tgt (match tgt string
                {[<regex ,"[0-9]+" <nil> $num $r> {[(read num) r]}]
                 [_ {}]})]}]
-     [<token-char $ $> [char token]
+     [<parse-char $ $> [char parser]
       {[$tgt (match tgt string
                {[<cons $x $xs> {[x xs]}]
                 [_ {}]})]}]
-     [<token-string $ $> [string token]
+     [<parse-string $ $> [string parser]
       {[$tgt (match-all tgt string
                {[<join $xs $ys> [xs ys]]})]}]
-     [<sc $> [token]
+     [<sc $> [parser]
       {[$tgt (match tgt string
                {[(loop $i [1 _]
                        <cons ?whitespace? ...>
@@ -41,17 +40,22 @@
                 [_ {}]})]}]
      [<eof> []
       {[$tgt (if (S.empty? tgt) {[]} {})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
      }))
 
-(assert-equal "tokenizer"
-  (match "123 4" token {[(L.number $n (L.number $m <eof>)) [n m]]})
+(assert-equal "parser"
+  (match "123 4" parser {[(L.number $n (L.number $m <eof>)) [n m]]})
   [123 4])
-(assert-equal "tokenizer"
-  (match "123 4" token {[(L.number $n (L.number ,4 <eof>)) n]})
+(assert-equal "parser"
+  (match "123 4" parser {[(L.number $n (L.number ,4 <eof>)) n]})
   123)
-(assert-equal "tokenizer"
-  (match "123 c" token {[(L.number $n (L.char $c <eof>)) [n c]]})
+(assert-equal "parser"
+  (match "123 c" parser {[(L.number $n (L.char $c <eof>)) [n c]]})
   [123 c#c])
-(assert-equal "tokenizer"
-  (match "123 c" token {[(L.number $n (L.string ,"c" <eof>)) n]})
+(assert-equal "parser"
+  (match "123 c" parser {[(L.number $n (L.string ,"c" <eof>)) n]})
   123)
+(assert-equal "parser"
+  (match "1 + 2 + 3" parser {[<expr1 $n <eof>> n]})
+  <Add <Int 1> <Add <Int 2> <Int 3>>>)
