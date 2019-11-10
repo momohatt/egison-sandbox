@@ -1,8 +1,8 @@
-(define $digit?
-  (lambda [$c] (c.between? c#0 c#9 c)))
-(define $whitespace?
-  (lambda [$c] (any (eq? $ c) {c#  c#\n c#\t})))
+;;
+;; PEG parser in Egison pattern match
+;;
 
+; syntax of target language
 (define $expr
   (algebraic-data-matcher
     {<lam string expr>
@@ -14,11 +14,13 @@
      <div expr expr>
      <int integer>}))
 
+; lexeme
 (define $L.number (pattern-function [$x $p] <parse-number x <sc p>>))
 (define $L.char   (pattern-function [$x $p] <parse-char   x <sc p>>))
 (define $L.string (pattern-function [$x $p] <parse-string x <sc p>>))
 (define $L.ident  (pattern-function [$x $p] <parse-ident  x <sc p>>))
 
+; helper functions for left associatives
 (define $leftOpExpr1
   (lambda [$acc $tgt]
     (match tgt parser
@@ -39,36 +41,37 @@
       {[<atomExpr $e $p> (leftAppExpr <App acc e> p)]
        [_ {[acc tgt]}]})))
 
+; the parser
 (define $parser
   (matcher
     {[<expr' $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<opExpr1 $n $p>    {[n p]}]
-                [<lambdaExpr $n $p> {[n p]}]
+               {[<opExpr1 $e $r>    {[e r]}]
+                [<lambdaExpr $e $r> {[e r]}]
                 [_ {}]})]}]
      [<lambdaExpr $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[(L.char ,c#\\ (L.ident $x (L.string ,"->" <expr' $e $p>)))
-                 {[<Lam x e> p]}]
+               {[(L.char ,c#\\ (L.ident $x (L.string ,"->" <expr' $e $r>)))
+                 {[<Lam x e> r]}]
                 [_ {}]})]}]
 
      [<opExpr1 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<opExpr2 $n $p> (leftOpExpr1 n p)]
+               {[<opExpr2 $e $r> (leftOpExpr1 e r)]
                 [_ {}]})]}]
      [<opExpr2 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<appExpr $n $p> (leftOpExpr2 n p)]
+               {[<appExpr $e $r> (leftOpExpr2 e r)]
                 [_ {}]})]}]
      [<appExpr $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<atomExpr $n $p> (leftAppExpr n p)]
+               {[<atomExpr $e $r> (leftAppExpr e r)]
                 [_ {}]})]}]
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[(L.number $n $p) {[<Int n> p]}]
-                [(L.ident $n $p)  {[<Var n> p]}]
-                [(L.string ,"(" <expr' $n (L.string ,")" $p)>) {[n p]}]
+               {[(L.number $n $r) {[<Int n> r]}]
+                [(L.ident $x $r)  {[<Var x> r]}]
+                [(L.string ,"(" <expr' $s (L.string ,")" $r)>) {[s r]}]
                 [_ {}]})]}]
 
      ;; literals
@@ -78,16 +81,17 @@
                 [_ {}]})]}]
      [<parse-char $ $> [char parser]
       {[$tgt (match tgt string
-               {[<cons $x $xs> {[x xs]}]
+               {[<cons $c $r> {[c r]}]
                 [_ {}]})]}]
      [<parse-string $ $> [string parser]
       {[$tgt (match-all tgt string
-               {[<join $xs $ys> [xs ys]]})]}]
+               {[<join $s $r> [s r]]})]}]
      [<parse-ident $ $> [string parser]
       {[$tgt (match tgt string
-               {[<regex ,"[A-Za-z]+" <nil> $x $r> {[x r]}]
+               {[<regex ,"[a-z][A-Za-z0-9]*" <nil> $x $r> {[x r]}]
                 [_ {}]})]}]
 
+     ; space consumer
      [<sc $> [parser]
       {[$tgt (match tgt string
                {[(loop $i [1 _]
@@ -100,6 +104,19 @@
      [$ [something]
       {[$tgt {tgt}]}]
      }))
+
+;;
+;; Utils
+;;
+
+(define $digit?
+  (lambda [$c] (c.between? c#0 c#9 c)))
+(define $whitespace?
+  (lambda [$c] (any (eq? $ c) {c#  c#\n c#\t})))
+
+;;
+;; Tests
+;;
 
 ; literals
 (assert-equal "literal"
