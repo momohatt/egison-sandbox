@@ -9,7 +9,9 @@
      <app expr expr>
      <var string>
      <add expr expr>
+     <sub expr expr>
      <mult expr expr>
+     <div expr expr>
      <int integer>}))
 
 (define $L.number (pattern-function [$x $p] <parse-number x <sc p>>))
@@ -21,12 +23,14 @@
   (lambda [$acc $tgt]
     (match tgt parser
       {[(L.char ,c#+ <opExpr2 $n $p>) (left-expr1 <Add acc n> p)]
+       [(L.char ,c#- <opExpr2 $n $p>) (left-expr1 <Sub acc n> p)]
        [_ {[acc tgt]}]})))
 
 (define $left-expr2
   (lambda [$acc $tgt]
     (match tgt parser
-      {[(L.char ,c#* <atomExpr $n $p>) (left-expr2 <Mul acc n> p)]
+      {[(L.char ,c#* <atomExpr $n $p>) (left-expr2 <Mult acc n> p)]
+       [(L.char ,c#/ <atomExpr $n $p>) (left-expr2 <Div acc n> p)]
        [_ {[acc tgt]}]})))
 
 (define $parser
@@ -104,10 +108,10 @@
   <Add <Add <Int 1> <Int 2>> <Int 3>>)
 (assert-equal "parser"
   (match "1 + 2 * 3" parser {[<expr' $n <eof>> n]})
-  <Add <Int 1> <Mul <Int 2> <Int 3>>>)
+  <Add <Int 1> <Mult <Int 2> <Int 3>>>)
 (assert-equal "parser"
   (match "(1 + 2) * 3" parser {[<expr' $n <eof>> n]})
-  <Mul <Add <Int 1> <Int 2>> <Int 3>>)
+  <Mult <Add <Int 1> <Int 2>> <Int 3>>)
 (assert-equal "parser"
   (match "\\x -> \\y -> x + y" parser {[<expr' $n <eof>> n]})
   <Lam "x" <Lam "y" <Add <Var "x"> <Var "y">>>>)
