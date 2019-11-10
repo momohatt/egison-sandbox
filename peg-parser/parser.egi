@@ -17,6 +17,18 @@
 (define $L.string (pattern-function [$x $p] <parse-string x <sc p>>))
 (define $L.ident  (pattern-function [$x $p] <parse-ident  x <sc p>>))
 
+(define $left-expr1
+  (lambda [$acc $tgt]
+    (match tgt parser
+      {[(L.char ,c#+ <opExpr2 $n $p>) (left-expr1 <Add acc n> p)]
+       [_ {[acc tgt]}]})))
+
+(define $left-expr2
+  (lambda [$acc $tgt]
+    (match tgt parser
+      {[(L.char ,c#* <atomExpr $n $p>) (left-expr2 <Mul acc n> p)]
+       [_ {[acc tgt]}]})))
+
 (define $parser
   (matcher
     {[<expr' $ $> [expr parser]
@@ -30,20 +42,13 @@
                  {[<Lam x e> p]}]
                 [_ {}]})]}]
 
-     ; TODO(momohatt): Fix this to left associative
      [<opExpr1 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<opExpr2 $n (L.char ,c#+ <opExpr1 $m $p>)>
-                 {[<Add n m> p]}]
-                [<opExpr2 $n $p>
-                 {[n p]}]
+               {[<opExpr2 $n $p> (left-expr1 n p)]
                 [_ {}]})]}]
      [<opExpr2 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<atomExpr $n (L.char ,c#* <opExpr2 $m $p>)>
-                 {[<Mul n m> p]}]
-                [<atomExpr $n $p>
-                 {[n p]}]
+               {[<atomExpr $n $p> (left-expr2 n p)]
                 [_ {}]})]}]
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
@@ -96,7 +101,7 @@
   123)
 (assert-equal "parser"
   (match "1 + 2 + 3" parser {[<expr' $n <eof>> n]})
-  <Add <Int 1> <Add <Int 2> <Int 3>>>)
+  <Add <Add <Int 1> <Int 2>> <Int 3>>)
 (assert-equal "parser"
   (match "1 + 2 * 3" parser {[<expr' $n <eof>> n]})
   <Add <Int 1> <Mul <Int 2> <Int 3>>>)
