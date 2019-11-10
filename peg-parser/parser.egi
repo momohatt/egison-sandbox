@@ -1,20 +1,57 @@
 (define $digit?
   (lambda [$c] (c.between? c#0 c#9 c)))
+(define $whitespace?
+  (lambda [$c] (any (eq? $ c) {c#  c#\n c#\t})))
 
 (define $parser
   (matcher
-    {[$ [literal]
-      {[$tgt {tgt}]}]}))
-
-(define $literal
-  (matcher
     {[<number $ $> [integer parser]
+      {[$tgt (match tgt token
+               {[<number $n <sc $p>> {[n p]}]
+                [_ {}]})]}]
+     [<eof> []
+      {[$tgt (match tgt token
+               {[<eof> {[]}]
+                [_ {}]})]}]
+     }))
+
+(define $L.number (pattern-function [$x $p] <token-number x <sc p>>))
+(define $L.char   (pattern-function [$x $p] <token-char x   <sc p>>))
+(define $L.string (pattern-function [$x $p] <token-string x <sc p>>))
+
+(define $token
+  (matcher
+    {[<token-number $ $> [integer token]
       {[$tgt (match tgt string
                {[<regex ,"[0-9]+" <nil> $num $r> {[(read num) r]}]
                 [_ {}]})]}]
-     [<sc $> [parser]
+     [<token-char $ $> [char token]
       {[$tgt (match tgt string
-               {[<regex ,"[ \n\t]*" <nil> _ $r>  {r}]})]}]
+               {[<cons $x $xs> {[x xs]}]
+                [_ {}]})]}]
+     [<token-string $ $> [string token]
+      {[$tgt (match-all tgt string
+               {[<join $xs $ys> [xs ys]]})]}]
+     [<sc $> [token]
+      {[$tgt (match tgt string
+               {[(loop $i [1 _]
+                       <cons ?whitespace? ...>
+                       (& $r !<cons ?whitespace? _>))
+                 {r}]
+                [_ {}]})]}]
      [<eof> []
       {[$tgt (if (S.empty? tgt) {[]} {})]}]
      }))
+
+(assert-equal "tokenizer"
+  (match "123 4" token {[(L.number $n (L.number $m <eof>)) [n m]]})
+  [123 4])
+(assert-equal "tokenizer"
+  (match "123 4" token {[(L.number $n (L.number ,4 <eof>)) n]})
+  123)
+(assert-equal "tokenizer"
+  (match "123 c" token {[(L.number $n (L.char $c <eof>)) [n c]]})
+  [123 c#c])
+(assert-equal "tokenizer"
+  (match "123 c" token {[(L.number $n (L.string ,"c" <eof>)) n]})
+  123)
