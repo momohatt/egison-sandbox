@@ -1,5 +1,5 @@
 ;;
-;; PEG parser in Egison pattern match
+;; Top-down parser in Egison pattern match
 ;;
 
 ; syntax of target language
