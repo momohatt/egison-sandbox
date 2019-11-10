@@ -22,15 +22,21 @@
 (define $leftOpExpr1
   (lambda [$acc $tgt]
     (match tgt parser
-      {[(L.char ,c#+ <opExpr2 $n $p>) (leftOpExpr1 <Add acc n> p)]
-       [(L.char ,c#- <opExpr2 $n $p>) (leftOpExpr1 <Sub acc n> p)]
+      {[(L.char ,c#+ <opExpr2 $e $p>) (leftOpExpr1 <Add acc e> p)]
+       [(L.char ,c#- <opExpr2 $e $p>) (leftOpExpr1 <Sub acc e> p)]
        [_ {[acc tgt]}]})))
 
 (define $leftOpExpr2
   (lambda [$acc $tgt]
     (match tgt parser
-      {[(L.char ,c#* <atomExpr $n $p>) (leftOpExpr2 <Mult acc n> p)]
-       [(L.char ,c#/ <atomExpr $n $p>) (leftOpExpr2 <Div acc n> p)]
+      {[(L.char ,c#* <appExpr $e $p>) (leftOpExpr2 <Mult acc e> p)]
+       [(L.char ,c#/ <appExpr $e $p>) (leftOpExpr2 <Div acc e> p)]
+       [_ {[acc tgt]}]})))
+
+(define $leftAppExpr
+  (lambda [$acc $tgt]
+    (match tgt parser
+      {[<atomExpr $e $p> (leftAppExpr <App acc e> p)]
        [_ {[acc tgt]}]})))
 
 (define $parser
@@ -52,7 +58,11 @@
                 [_ {}]})]}]
      [<opExpr2 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<atomExpr $n $p> (leftOpExpr2 n p)]
+               {[<appExpr $n $p> (leftOpExpr2 n p)]
+                [_ {}]})]}]
+     [<appExpr $ $> [expr parser]
+      {[$tgt (match tgt parser
+               {[<atomExpr $n $p> (leftAppExpr n p)]
                 [_ {}]})]}]
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
@@ -91,27 +101,33 @@
       {[$tgt {tgt}]}]
      }))
 
-(assert-equal "parser"
+; literals
+(assert-equal "literal"
   (match "123 4" parser {[(L.number $n (L.number $m <eof>)) [n m]]})
   [123 4])
-(assert-equal "parser"
+(assert-equal "literal"
   (match "123 4" parser {[(L.number $n (L.number ,4 <eof>)) n]})
   123)
-(assert-equal "parser"
+(assert-equal "literal"
   (match "123 c" parser {[(L.number $n (L.char $c <eof>)) [n c]]})
   [123 c#c])
-(assert-equal "parser"
+(assert-equal "literal"
   (match "123 c" parser {[(L.number $n (L.string ,"c" <eof>)) n]})
   123)
-(assert-equal "parser"
-  (match "1 + 2 + 3" parser {[<expr' $n <eof>> n]})
+
+; expressions
+(assert-equal "expression"
+  (match "1 + 2 + 3" parser {[<expr' $n <eof>> n]}) ; left associative
   <Add <Add <Int 1> <Int 2>> <Int 3>>)
-(assert-equal "parser"
+(assert-equal "expression"
   (match "1 + 2 * 3" parser {[<expr' $n <eof>> n]})
   <Add <Int 1> <Mult <Int 2> <Int 3>>>)
-(assert-equal "parser"
+(assert-equal "expression"
   (match "(1 + 2) * 3" parser {[<expr' $n <eof>> n]})
   <Mult <Add <Int 1> <Int 2>> <Int 3>>)
-(assert-equal "parser"
+(assert-equal "expression"
   (match "\\x -> \\y -> x + y" parser {[<expr' $n <eof>> n]})
   <Lam "x" <Lam "y" <Add <Var "x"> <Var "y">>>>)
+(assert-equal "expression"
+  (match "(\\x -> \\y -> x + y) 1 2" parser {[<expr' $n <eof>> n]})
+  <App <App <Lam "x" <Lam "y" <Add <Var "x"> <Var "y">>>> <Int 1>> <Int 2>>)
