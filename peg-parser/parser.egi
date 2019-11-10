@@ -5,7 +5,9 @@
 
 (define $expr
   (algebraic-data-matcher
-    {<add expr expr> <int integer>}))
+    {<add expr expr>
+     <mult expr expr>
+     <int integer>}))
 
 (define $L.number (pattern-function [$x $p] <parse-number x <sc p>>))
 (define $L.char   (pattern-function [$x $p] <parse-char   x <sc p>>))
@@ -15,11 +17,24 @@
   (matcher
     {[<expr1 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[(L.number $n (L.char ,c#+ <expr1 $m $p>))
-                 {[<Add <Int n> m> p]}]
-                [(L.number $n $p)
-                 {[<Int n> p]}]
+               {[<expr2 $n (L.char ,c#+ <expr1 $m $p>)>
+                 {[<Add n m> p]}]
+                [<expr2 $n $p>
+                 {[n p]}]
                 [_ {}]})]}]
+     [<expr2 $ $> [expr parser]
+      {[$tgt (match tgt parser
+               {[<atomExpr $n (L.char ,c#* <expr2 $m $p>)>
+                 {[<Mul n m> p]}]
+                [<atomExpr $n $p>
+                 {[n p]}]
+                [_ {}]})]}]
+     [<atomExpr $ $> [expr parser]
+      {[$tgt (match tgt parser
+               {[(L.number $n $p) {[<Int n> p]}]
+                [_ {}]})]}]
+
+     ;; literals
      [<parse-number $ $> [integer parser]
       {[$tgt (match tgt string
                {[<regex ,"[0-9]+" <nil> $num $r> {[(read num) r]}]
@@ -59,3 +74,6 @@
 (assert-equal "parser"
   (match "1 + 2 + 3" parser {[<expr1 $n <eof>> n]})
   <Add <Int 1> <Add <Int 2> <Int 3>>>)
+(assert-equal "parser"
+  (match "1 + 2 * 3" parser {[<expr1 $n <eof>> n]})
+  <Add <Int 1> <Mul <Int 2> <Int 3>>>)
