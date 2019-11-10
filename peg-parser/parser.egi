@@ -19,18 +19,18 @@
 (define $L.string (pattern-function [$x $p] <parse-string x <sc p>>))
 (define $L.ident  (pattern-function [$x $p] <parse-ident  x <sc p>>))
 
-(define $left-expr1
+(define $leftOpExpr1
   (lambda [$acc $tgt]
     (match tgt parser
-      {[(L.char ,c#+ <opExpr2 $n $p>) (left-expr1 <Add acc n> p)]
-       [(L.char ,c#- <opExpr2 $n $p>) (left-expr1 <Sub acc n> p)]
+      {[(L.char ,c#+ <opExpr2 $n $p>) (leftOpExpr1 <Add acc n> p)]
+       [(L.char ,c#- <opExpr2 $n $p>) (leftOpExpr1 <Sub acc n> p)]
        [_ {[acc tgt]}]})))
 
-(define $left-expr2
+(define $leftOpExpr2
   (lambda [$acc $tgt]
     (match tgt parser
-      {[(L.char ,c#* <atomExpr $n $p>) (left-expr2 <Mult acc n> p)]
-       [(L.char ,c#/ <atomExpr $n $p>) (left-expr2 <Div acc n> p)]
+      {[(L.char ,c#* <atomExpr $n $p>) (leftOpExpr2 <Mult acc n> p)]
+       [(L.char ,c#/ <atomExpr $n $p>) (leftOpExpr2 <Div acc n> p)]
        [_ {[acc tgt]}]})))
 
 (define $parser
@@ -48,11 +48,11 @@
 
      [<opExpr1 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<opExpr2 $n $p> (left-expr1 n p)]
+               {[<opExpr2 $n $p> (leftOpExpr1 n p)]
                 [_ {}]})]}]
      [<opExpr2 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<atomExpr $n $p> (left-expr2 n p)]
+               {[<atomExpr $n $p> (leftOpExpr2 n p)]
                 [_ {}]})]}]
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
