@@ -1,0 +1,20 @@
+(define $digit?
+  (lambda [$c] (c.between? c#0 c#9 c)))
+
+(define $parser
+  (matcher
+    {[$ [literal]
+      {[$tgt {tgt}]}]}))
+
+(define $literal
+  (matcher
+    {[<number $ $> [integer parser]
+      {[$tgt (match tgt string
+               {[<regex ,"[0-9]+" <nil> $num $r> {[(read num) r]}]
+                [_ {}]})]}]
+     [<sc $> [parser]
+      {[$tgt (match tgt string
+               {[<regex ,"[ \n\t]*" <nil> _ $r>  {r}]})]}]
+     [<eof> []
+      {[$tgt (if (S.empty? tgt) {[]} {})]}]
+     }))
