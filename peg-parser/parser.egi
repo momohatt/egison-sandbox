@@ -5,23 +5,30 @@
 
 (define $expr
   (algebraic-data-matcher
-    {<add expr expr>
+    {<lam string expr>
+     <app expr expr>
+     <var string>
+     <add expr expr>
      <mult expr expr>
      <int integer>}))
 
 (define $L.number (pattern-function [$x $p] <parse-number x <sc p>>))
 (define $L.char   (pattern-function [$x $p] <parse-char   x <sc p>>))
 (define $L.string (pattern-function [$x $p] <parse-string x <sc p>>))
+(define $L.ident  (pattern-function [$x $p] <parse-ident  x <sc p>>))
 
 (define $parser
   (matcher
     {[<expr' $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<opExpr1 $n $p>  {[n p]}]
-                [<opExpr2 $n $p>  {[n p]}]
-                [<atomExpr $n $p> {[n p]}]
-                [_ {}]
-                })]}]
+               {[<opExpr1 $n $p>    {[n p]}]
+                [<lambdaExpr $n $p> {[n p]}]
+                [_ {}]})]}]
+     [<lambdaExpr $ $> [expr parser]
+      {[$tgt (match tgt parser
+               {[(L.char ,c#\\ (L.ident $x (L.string ,"->" <expr' $e $p>)))
+                 {[<Lam x e> p]}]
+                [_ {}]})]}]
      [<opExpr1 $ $> [expr parser]
       {[$tgt (match tgt parser
                {[<opExpr2 $n (L.char ,c#+ <opExpr1 $m $p>)>
@@ -39,6 +46,7 @@
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
                {[(L.number $n $p) {[<Int n> p]}]
+                [(L.ident $n $p) {[n p]}]
                 [(L.string ,"(" <expr' $n (L.string ,")" $p)>) {[n p]}]
                 [_ {}]})]}]
 
@@ -54,6 +62,11 @@
      [<parse-string $ $> [string parser]
       {[$tgt (match-all tgt string
                {[<join $xs $ys> [xs ys]]})]}]
+     [<parse-ident $ $> [string parser]
+      {[$tgt (match tgt string
+               {[<regex ,"[A-Za-z]+" <nil> $x $r> {[x r]}]
+                [_ {}]})]}]
+
      [<sc $> [parser]
       {[$tgt (match tgt string
                {[(loop $i [1 _]
@@ -88,3 +101,6 @@
 (assert-equal "parser"
   (match "(1 + 2) * 3" parser {[<expr' $n <eof>> n]})
   <Mul <Add <Int 1> <Int 2>> <Int 3>>)
+(assert-equal "parser"
+  (match "\\x -> \\y -> x + y" parser {[<expr' $n <eof>> n]})
+  <Lam "x" <Lam "y" <Add "x" "y">>>)
