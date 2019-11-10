@@ -15,16 +15,23 @@
 
 (define $parser
   (matcher
-    {[<expr1 $ $> [expr parser]
+    {[<expr' $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<expr2 $n (L.char ,c#+ <expr1 $m $p>)>
+               {[<opExpr1 $n $p>  {[n p]}]
+                [<opExpr2 $n $p>  {[n p]}]
+                [<atomExpr $n $p> {[n p]}]
+                [_ {}]
+                })]}]
+     [<opExpr1 $ $> [expr parser]
+      {[$tgt (match tgt parser
+               {[<opExpr2 $n (L.char ,c#+ <opExpr1 $m $p>)>
                  {[<Add n m> p]}]
-                [<expr2 $n $p>
+                [<opExpr2 $n $p>
                  {[n p]}]
                 [_ {}]})]}]
-     [<expr2 $ $> [expr parser]
+     [<opExpr2 $ $> [expr parser]
       {[$tgt (match tgt parser
-               {[<atomExpr $n (L.char ,c#* <expr2 $m $p>)>
+               {[<atomExpr $n (L.char ,c#* <opExpr2 $m $p>)>
                  {[<Mul n m> p]}]
                 [<atomExpr $n $p>
                  {[n p]}]
@@ -32,7 +39,7 @@
      [<atomExpr $ $> [expr parser]
       {[$tgt (match tgt parser
                {[(L.number $n $p) {[<Int n> p]}]
-                [(L.string ,"(" <expr1 $n (L.string ,")" $p)>) {[n p]}]
+                [(L.string ,"(" <expr' $n (L.string ,")" $p)>) {[n p]}]
                 [_ {}]})]}]
 
      ;; literals
@@ -73,11 +80,11 @@
   (match "123 c" parser {[(L.number $n (L.string ,"c" <eof>)) n]})
   123)
 (assert-equal "parser"
-  (match "1 + 2 + 3" parser {[<expr1 $n <eof>> n]})
+  (match "1 + 2 + 3" parser {[<expr' $n <eof>> n]})
   <Add <Int 1> <Add <Int 2> <Int 3>>>)
 (assert-equal "parser"
-  (match "1 + 2 * 3" parser {[<expr1 $n <eof>> n]})
+  (match "1 + 2 * 3" parser {[<expr' $n <eof>> n]})
   <Add <Int 1> <Mul <Int 2> <Int 3>>>)
 (assert-equal "parser"
-  (match "(1 + 2) * 3" parser {[<expr1 $n <eof>> n]})
+  (match "(1 + 2) * 3" parser {[<expr' $n <eof>> n]})
   <Mul <Add <Int 1> <Int 2>> <Int 3>>)
