@@ -11,6 +11,10 @@
       {[$tgt (match (/ tgt val) math-expr
                {[<div _ !,1> {}]
                 [$rem {rem}]})]}]
+     [<power ,$val $> [integer]
+      {[$tgt (match tgt math-expr
+               {[<term _ <ncons ,val $n _>> {n}]
+                [_                          {0}]})]}]
      [<power $ $> [symbol integer]
       {[$tgt (match-all tgt math-expr
                {[<term _ <ncons $x $n _>> [x n]]})]}]
@@ -27,6 +31,9 @@
 (assert-equal "power"
   (match-all (* x^2 y) monomial {[<power $x $n> [x n]]})
   {[x 2] [y 1]})
+(assert-equal "power"
+  (match (* x^2 y) monomial {[<power ,z $n> n]})
+  0)
 
 (define $polynomial
   (matcher
@@ -101,14 +108,17 @@
 (define $replicate
   (lambda [$n $x] (take n (repeat1 x))))
 
-; TODO: fix
-
 (define $lcm
   (lambda [$m1 $m2]
-    (concat
-      (match-all [m1 m2] [monomial monomial]
-        {[[<power $x $n1> <power ,x $n2>] (replicate (max {n1 n2}) x)]
-         [[(later <power ,x ,0>) <power $x $n>] (replicate n x)]}))))
+    (capply *
+      (concat
+        (match-all [m1 m2] [monomial monomial]
+          {[[<power $x $n1> <power ,x $n2>] (replicate (max {n1 n2}) x)]
+          [[(later <power ,x ,0>) <power $x $n>] (replicate n x)]})))))
+
+(assert-equal "lcm"
+  (lcm (* x^2 y) (* x y^2))
+  (* x^2 y^2))
 
 (define $s-polynomial
   (lambda [$f1 $f2 $ord]
@@ -116,14 +126,14 @@
       {[[<head ,ord ,1 $h1> <head ,ord ,1 $h2>]
         (match (lcm h1 h2) monomial
           {[(& <mult ,h1 $m1> <mult ,h2 $m2>)
-            (plus (mult [1 m1] f1) (mult [-1 m2] f2))]})]
+            (+ (* m1 f1) (* -1 m2 f2))]})]
        [[<head ,ord $c1 $h1> <head ,ord $c2 $h2>]
-        (s-polynomial (mult [(/ 1 c1) {}] f1) (mult [(/ 1 c2) {}] f2) ord)]
+        (s-polynomial (/ f1 c1) (/ f2 c2) ord)]
         })))
 
 (assert-equal "s-polynomial"
   (s-polynomial f1 f2 {x y})
-  {[-1 {y x x}] [1 {x y y}]})
+  (+ (* -1 y x^2) (* x y^2)))
 
 (define $buchberger-loop
   (lambda [$pairs $fs $ord]
@@ -132,12 +142,12 @@
        [<cons [$p1 $p2] $pairs'>
         (let {[$h (normalize fs (s-polynomial p1 p2 ord) ord)]}
           (match h polynomial
-            {[<nil> (buchberger-loop pairs' fs ord)]
+            {[,0 (buchberger-loop pairs' fs ord)]
              [<head ,ord $c _>
-              (let* {[$h' (mult [(/ 1 c) {}] h)]
+              (let* {[$h' (/ h c)]
                      [$new-pairs (map (lambda $x [x h']) fs)]}
                 (buchberger-loop {@pairs' @new-pairs}
-                                 (cons (debug/fn show-poly h') fs)
+                                 (cons (debug h') fs)
                                  ord))]
              }))]
        })))
