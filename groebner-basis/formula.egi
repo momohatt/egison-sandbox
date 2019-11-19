@@ -99,9 +99,6 @@
 
 ; ========================== Buchberger's algorithm ============================
 
-(define $replicate
-  (lambda [$n $x] (take n (repeat1 x))))
-
 (define $lcm
   (lambda [$m1 $m2]
     (concat
@@ -206,3 +203,6 @@
   (macro [$show $x]
     (io (do {[(print (show x))]}
           (return x)))))
+
+(define $replicate
+  (lambda [$n $x] (take n (repeat1 x))))
