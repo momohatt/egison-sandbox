@@ -21,19 +21,30 @@
       {[$tgt {tgt}]}]
      }))
 
+(assert-equal "degree"
+  (match {} monomial {[<degree $n> n]})
+  0)
+(assert-equal "degree"
+  (match {x x y} monomial {[<degree $n> n]})
+  3)
+(assert-equal "power"
+  (match-all {x x y} monomial {[<power $x $n> [x n]]})
+  {[x 2] [y 1]})
+(assert-equal "power"
+  (match {x x y} monomial {[<power ,z $n> n]})
+  0)
+
 (define $polynomial
   (matcher
-    {[<occur $> [monomial]
-      {[$tgt (map snd tgt)]}]
-     [<head ,$ord $ $> [integer monomial]
+    {[<head ,$ord $ $> [integer monomial]
       {[$tgt {(max/fn (lambda [$m1 $m2] (ord-mono (snd m1) (snd m2) ord)) tgt)}]}]
      [$ (multiset [integer monomial])
       {[$tgt {tgt}]}]
      }))
 
-(assert-equal "occur"
-  (match-all f3 polynomial [<occur $m> m])
-  {{x x y} {x y y} {x} {}})
+(assert-equal "head"
+  (match {[1 {x}] [1 {x x}]} polynomial {[<head ,{x} $n $x> [n x]]})
+  [1 {x x}])
 
 (define $ord-mono-lex   ; lexicographic order
   (lambda [$l $m1 $m2]
@@ -51,10 +62,17 @@
      [[$m1 $m2 $sym-list]
       (ord-mono-lex sym-list m1 m2)]}))
 
+(assert-equal "ord-mono" (ord-mono {x x} {x x} {x}) <Equal>)
+(assert-equal "ord-mono" (ord-mono {x x} {x y} {x y}) <Greater>)
+
 (define $non-heads
   (lambda [$poly $ord]
     (match poly polynomial
       {[<head ,ord $c $mono> (delete-first [c mono] poly)]})))
+
+(assert-equal "non-heads"
+  (non-heads {[1 {x x}] [1 {y}] [1 {}]}{x y})
+  {[1 {y}] [1 {}]})
 
 (define $negate
   (match-all-lambda polynomial
@@ -153,6 +171,13 @@
 (define $buchberger
   (lambda [$fs $ord]
     (buchberger-loop (all-pairs fs) fs ord)))
+
+(assert-equal "buchberger"
+  (map show-poly (buchberger {f1 f2} {x y}))
+  {"y^3 - y^2" "x^2 - y^2" "x y^2 - y^2"})
+(assert-equal "buchberger"
+  (map show-poly (buchberger fs1 {x y z}))
+  {"z - 3" "x - 1" "y - 2"})
 
 ; ==============================================================================
 
