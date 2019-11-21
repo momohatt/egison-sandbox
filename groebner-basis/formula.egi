@@ -2,26 +2,34 @@
 
 (define $symbol something)
 
-(define $monomial-base (multiset [symbol integer]))
-
 (define $monomial
   (matcher
     {[<degree $> [integer]
       {[$tgt {(sum (map snd tgt))}]}]
      [<power ,$x $> [symbol integer]
-      {[$tgt (match tgt monomial-base
+      {[$tgt (match tgt (multiset [symbol integer])
                {[<cons [,x $n] _> {n}]
                 [_                {0}]})]}]
      [<power $ $> [symbol integer]
       {[$tgt tgt]}]
      [<mult ,$val $> [monomial]
-      {[$tgt {(match-all [tgt val] [monomial-base monomial-base]
-                {[[<cons [$x $n] _> !<cons [,x _] _>] [x n]]
-                 [[<cons [$x $n] _> <cons [,x (& ?(gt? n $) $m)] _>] [x (- n m)]]
-                 })}]}]
-     [$ monomial-base
+      {[$tgt (div val tgt)]}]
+     [$ (multiset [symbol integer])
       {[$tgt {tgt}]}]
      }))
+
+(define $div
+  (lambda [$divisor $dividend] ; dividend / divisor
+    (match [divisor dividend] [(list [symbol integer]) (multiset [symbol integer])]
+      {[[<nil> _] {dividend}]
+       [[<cons [$x $n] $r1> <cons [,x (& ?(lte? n $) $m)] $r2>]
+        (match (div r1 r2) (list something)
+          {[<nil> {}]
+           [<cons $result <nil>>
+                  (if (eq? n m)
+                      {result}
+                      {(cons [x (- m n)] result)})]})]
+       [_ {}]})))
 
 (assert-equal "degree"
   (match {} monomial {[<degree $n> n]})
@@ -36,9 +44,12 @@
   (match {[x 2] [y 1]} monomial {[<power ,z $n> n]})
   0)
 (assert "mult"
-  (eq?/m monomial-base
+  (eq?/m monomial
          (match {[x 2] [y 1]} monomial {[<mult ,{[x 1]} $rem> rem]})
          {[y 1] [x 1]}))
+(assert-equal "mult"
+  (match-all {[x 2] [y 1]} monomial {[<mult ,{[x 3]} $rem> rem]})
+  {})
 
 (define $polynomial
   (matcher
@@ -139,10 +150,10 @@
     (eq? (normalize eqs poly ord) {})))
 
 (assert-equal "normalize"
-  (normalize {f1 f2} {[-1 {y x x}] [1 {x y y}]} {x y})
-  {[-1 {x x}] [1 {y y}]})
+  (normalize {f1 f2} {[-1 {[x 2] [y 1]}] [1 {[x 1] [y 2]}]} {x y})
+  {[-1 {[x 2]}] [1 {[y 2]}]})
 (assert "rewrite"
-  (eq?/m (multiset [integer monomial-base])
+  (eq?/m (multiset [integer monomial])
          (rewrite {f1 f2} {[1 {[x 2] [y 2]}]} {x y})
          {[1 {[y 1] [x 2]}]}))
 
