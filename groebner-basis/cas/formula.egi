@@ -97,7 +97,7 @@
 
 (define $joinable?
   (lambda [$eqs $poly $ord]
-    (eq? (normalize eqs poly ord) {})))
+    (eq? (normalize eqs poly ord) 0)))
 
 (assert-equal "rewrite"
   (rewrite {f1 f2} (* x^2 y^2) {x y})
