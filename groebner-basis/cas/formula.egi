@@ -147,7 +147,7 @@
               (let* {[$h' (/ h c)]
                      [$new-pairs (map (lambda $x [x h']) fs)]}
                 (buchberger-loop {@pairs' @new-pairs}
-                                 (cons (debug h') fs)
+                                 (cons h' fs)
                                  ord))]
              }))]
        })))
@@ -167,6 +167,13 @@
 (define $buchberger
   (lambda [$fs $ord]
     (buchberger-loop (all-pairs fs) fs ord)))
+
+(assert-equal "buchberger"
+  (buchberger {f1 f2} {x y})
+  {(+ y^3 (* -1 y^2)) (+ x^2 (* -1 y^2)) (+ (* x y^2) (* -1 y^2))})
+(assert-equal "buchberger"
+  (buchberger fs1 {x y z})
+  {(+ -3 z) (+ x -1) (+ y -2)})
 
 ; ==============================================================================
 
