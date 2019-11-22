@@ -148,7 +148,7 @@
 
 (define $rewrite
   (lambda [$eqs $poly $ord]
-    (match [eqs (debug/fn show-poly poly)] [(multiset polynomial) polynomial]
+    (match [eqs poly] [(multiset polynomial) polynomial]
       {[[<cons (& $rule <head ,ord ,1 $hf>) _> <cons [$a <mult ,hf $m'>] $rs>]
         (plus rs (mult [a m'] (negate (non-heads rule ord))))]
        [_ poly]})))
@@ -221,7 +221,7 @@
                   {[<nil> (buchberger-loop pairs' fs ord)]
                    [<head ,ord $c _>
                     (let* {[$h' (mult [(/ 1 c) {}] h)]
-                           [$new-pairs (map (lambda $x [x h']) (interreduce fs ord))]}
+                           [$new-pairs (map (lambda $x [x h']) fs)]}
                       (buchberger-loop {@pairs' @new-pairs}
                                        (cons (debug/fn show-poly h') fs)
                                        ord))]
@@ -295,6 +295,13 @@
      [<cons $x $xs>
       (let {[$first (show-coeff-mono-head x)]}
         (S.intercalate " " {first @(map show-coeff-mono xs)}))]}))
+
+(define $col-show/fn
+  (lambda [$show $set]
+    (S.concat {"{" (S.intercalate ",\n " (map show set)) "}"})))
+
+(define $show-polys
+  (col-show/fn show-poly $1))
 
 (define $debug/fn
   (macro [$show $x]
