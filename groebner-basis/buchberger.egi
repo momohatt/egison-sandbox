@@ -1,0 +1,106 @@
+; Implementation of Buchberger's algorithm
+
+(load-file "formula.egi")
+
+(define $rewrite
+  (lambda [$eqs $poly $ord]
+    (match [eqs poly] [(multiset polynomial) polynomial]
+      {[[<cons (& $rule <head ,ord ,1 $hf>) _> <cons [$a <mult ,hf $m'>] $rs>]
+        (plus rs (mult [a m'] (negate (non-heads rule ord))))]
+       [_ poly]})))
+
+(define $normalize
+  (lambda [$eqs $poly $ord]
+    (let {[$poly' (rewrite eqs poly ord)]}
+      (if (eq?/m polynomial poly poly') poly (normalize eqs poly' ord)))))
+
+(define $joinable?
+  (lambda [$eqs $poly $ord]
+    (eq? (normalize eqs poly ord) {})))
+
+(assert-equal "normalize"
+  (normalize {f1 f2} {[-1 {[x 2] [y 1]}] [1 {[x 1] [y 2]}]} {x y})
+  {[-1 {[x 2]}] [1 {[y 2]}]})
+(assert "rewrite"
+  (eq?/m (multiset [integer monomial])
+         (rewrite {f1 f2} {[1 {[x 2] [y 2]}]} {x y})
+         {[1 {[y 1] [x 2]}]}))
+
+(define $lcm
+  (lambda [$m1 $m2]
+    (match-all [m1 m2] [monomial monomial]
+      {[[<power $x $n1> <power ,x $n2>]   [x (max {n1 n2})]]
+       [{[# <power $x $n>] <power ,x ,0>} [x n]]})))
+
+(assert-equal "lcm"
+  (lcm {[x 2] [z 1]} {[x 1] [y 1]})
+  {[x 2] [z 1] [y 1]})
+
+(define $s-polynomial
+  (lambda [$f1 $f2 $ord]
+    (match [f1 f2] [polynomial polynomial]
+      {[[<head ,ord ,1 $h1> <head ,ord ,1 $h2>]
+        (match (lcm h1 h2) monomial
+          {[(& <mult ,h1 $m1> <mult ,h2 $m2>)
+            (plus (mult [1 m1] f1) (mult [-1 m2] f2))]})]
+       [[<head ,ord $c1 $h1> <head ,ord $c2 $h2>]
+        (s-polynomial (mult [(/ 1 c1) {}] f1) (mult [(/ 1 c2) {}] f2) ord)]
+        })))
+
+(assert-equal "s-polynomial"
+  (s-polynomial f1 f2 {x y})
+  {[-1 {[y 1] [x 2]}] [1 {[x 1] [y 2]}]})
+(assert-equal "s-polynomial"
+  (s-polynomial {[3 {[x 3] [y 1]}] [2 {[x 1] [y 1]}] [-1 {[y 2]}]}
+                {[2 {[x 1] [y 2]}] [-5 {[y 3]}]}
+                {x y})
+  {[(/ 2 3) {[y 2] [x 1]}] [(/ -1 3) {[y 3]}] [(/ 5 2) {[x 2] [y 3]}]})
+
+(define $report
+  (lambda [$fs $pairs]
+    (print
+      (S.concat {(show (length fs)) " equations, "
+                 (show (length pairs)) " pending pairs"}))))
+
+(define $buchberger-loop
+  (lambda [$pairs $fs $ord]
+    (io
+      (do {(report fs pairs)}
+        (return
+          (match pairs (list [polynomial polynomial])
+            {[<nil> (interreduce fs ord)]
+             [<cons [$p1 $p2] $pairs'>
+              (let {[$h (normalize fs (s-polynomial p1 p2 ord) ord)]}
+                (match h polynomial
+                  {[<nil> (buchberger-loop pairs' fs ord)]
+                   [<head ,ord $c _>
+                    (let* {[$h' (mult [(/ 1 c) {}] h)]
+                           [$new-pairs (map (lambda $x [x h']) fs)]}
+                      (buchberger-loop {@pairs' @new-pairs}
+                                       (cons (debug/fn show-poly h') fs)
+                                       ord))]
+                   }))]
+             }))))))
+
+(define $all-pairs
+  (lambda [$fs]
+    (match-all fs (list something)
+      {[<join _ <cons $f1 <join _ <cons $f2 _>>>> [f1 f2]]})))
+
+(define $interreduce
+  (lambda [$fs $ord]
+    (match fs (multiset polynomial)
+      {[<cons $f (& ?(joinable? $ f ord) $other)>
+        (interreduce other ord)]
+       [_ fs]})))
+
+(define $buchberger
+  (lambda [$fs $ord]
+    (buchberger-loop (all-pairs fs) fs ord)))
+
+(assert-equal "buchberger"
+  (map show-poly (buchberger {f1 f2} {x y}))
+  {"y^3 - y^2" "x^2 - y^2" "x y^2 - y^2"})
+(assert-equal "buchberger"
+  (map show-poly (buchberger fs1 {x y z}))
+  {"z - 3" "x - 1" "y - 2"})
