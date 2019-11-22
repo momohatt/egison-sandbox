@@ -54,7 +54,8 @@
 (define $polynomial
   (matcher
     {[<head ,$ord $ $> [integer monomial]
-      {[$tgt {(max/fn (lambda [$m1 $m2] (ord-mono (snd m1) (snd m2) ord)) tgt)}]}]
+      {[$tgt {(max/fn (lambda [$m1 $m2] (ord-mono-lex ord (snd m1) (snd m2)))
+                      tgt)}]}]
      [$ (multiset [integer monomial])
       {[$tgt {tgt}]}]
      }))
@@ -63,24 +64,36 @@
   (match {[1 {[x 1]}] [1 {[x 2]}]} polynomial {[<head ,{x} $n $x> [n x]]})
   [1 {[x 2]}])
 
-(define $ord-mono-lex   ; lexicographic order
+; Lexicographic Ordering
+(define $ord-mono-lex
   (lambda [$l $m1 $m2]
     (match [l m1 m2] [(list symbol) monomial monomial]
       {[[<nil> _ _] <Equal>]
        [[<cons $x $xs> <power ,x $n1> <power ,x $n2>]
-        (if (eq? n1 n2)
-            (ord-mono-lex xs m1 m2)
-            (compare n1 n2))]})))
+        (match (compare n1 n2) ordering
+          {[<equal> (ord-mono-lex xs m1 m2)]
+           [$cmp    cmp]})]})))
 
-(define $ord-mono
-  (match-lambda [monomial monomial (list symbol)]
-    {[[<degree $n1> <degree (& !,n1 $n2)> _]
+; Graded Lexicographic Ordering
+(define $ord-mono-grlex
+  (match-lambda [(list symbol) monomial monomial]
+    {[[_ <degree $n1> <degree (& !,n1 $n2)>]
       (compare n1 n2)]
-     [[$m1 $m2 $sym-list]
+     [[$sym-list $m1 $m2]
       (ord-mono-lex sym-list m1 m2)]}))
 
-(assert-equal "ord-mono" (ord-mono {[x 2]} {[x 2]} {x}) <Equal>)
-(assert-equal "ord-mono" (ord-mono {[x 2]} {[x 1] [y 1]} {x y}) <Greater>)
+(assert-equal "ord-mono-lex"
+  (ord-mono-lex {x y z} {[x 1] [y 2]} {[y 3] [z 2]})
+  <Greater>)
+(assert-equal "ord-mono-lex"
+  (ord-mono-lex {x y z} {[x 2] [y 3] [z 3]} {[x 2] [y 1] [z 5]})
+  <Greater>)
+(assert-equal "ord-mono-grlex"
+  (ord-mono-grlex {x y z} {[x 1] [y 3] [z 2]} {[x 4] [y 1]})
+  <Greater>)
+(assert-equal "ord-mono-grlex"
+  (ord-mono-grlex {x y z} {[x 1] [y 3] [z 2]} {[x 1] [y 1] [z 4]})
+  <Greater>)
 
 (define $non-heads
   (lambda [$poly $ord]
@@ -135,7 +148,7 @@
 
 (define $rewrite
   (lambda [$eqs $poly $ord]
-    (match [eqs poly] [(multiset polynomial) polynomial]
+    (match [eqs (debug/fn show-poly poly)] [(multiset polynomial) polynomial]
       {[[<cons (& $rule <head ,ord ,1 $hf>) _> <cons [$a <mult ,hf $m'>] $rs>]
         (plus rs (mult [a m'] (negate (non-heads rule ord))))]
        [_ poly]})))
@@ -183,23 +196,37 @@
 (assert-equal "s-polynomial"
   (s-polynomial f1 f2 {x y})
   {[-1 {[y 1] [x 2]}] [1 {[x 1] [y 2]}]})
+(assert-equal "s-polynomial"
+  (s-polynomial {[3 {[x 3] [y 1]}] [2 {[x 1] [y 1]}] [-1 {[y 2]}]}
+                {[2 {[x 1] [y 2]}] [-5 {[y 3]}]}
+                {x y})
+  {[(/ 2 3) {[y 2] [x 1]}] [(/ -1 3) {[y 3]}] [(/ 5 2) {[x 2] [y 3]}]})
+
+(define $report
+  (lambda [$fs $pairs]
+    (print
+      (S.concat {(show (length fs)) " equations, "
+                 (show (length pairs)) " pending pairs"}))))
 
 (define $buchberger-loop
   (lambda [$pairs $fs $ord]
-    (match pairs (list [polynomial polynomial])
-      {[<nil> (interreduce fs ord)]
-       [<cons [$p1 $p2] $pairs'>
-        (let {[$h (normalize fs (s-polynomial p1 p2 ord) ord)]}
-          (match h polynomial
-            {[<nil> (buchberger-loop pairs' fs ord)]
-             [<head ,ord $c _>
-              (let* {[$h' (mult [(/ 1 c) {}] h)]
-                     [$new-pairs (map (lambda $x [x h']) fs)]}
-                (buchberger-loop {@pairs' @new-pairs}
-                                 (cons (debug/fn show-poly h') fs)
-                                 ord))]
-             }))]
-       })))
+    (io
+      (do {(report fs pairs)}
+        (return
+          (match pairs (list [polynomial polynomial])
+            {[<nil> (interreduce fs ord)]
+             [<cons [$p1 $p2] $pairs'>
+              (let {[$h (normalize fs (s-polynomial p1 p2 ord) ord)]}
+                (match h polynomial
+                  {[<nil> (buchberger-loop pairs' fs ord)]
+                   [<head ,ord $c _>
+                    (let* {[$h' (mult [(/ 1 c) {}] h)]
+                           [$new-pairs (map (lambda $x [x h']) (interreduce fs ord))]}
+                      (buchberger-loop {@pairs' @new-pairs}
+                                       (cons (debug/fn show-poly h') fs)
+                                       ord))]
+                   }))]
+             }))))))
 
 (define $all-pairs
   (lambda [$fs]
