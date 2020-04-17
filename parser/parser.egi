@@ -1,154 +1,175 @@
-;;
-;; Top-down parser in Egison pattern match
-;;
+--
+-- Top-down parser in Egison pattern match
+--
 
-; syntax of target language
-(define $expr
-  (algebraic-data-matcher
-    {<lam string expr>
-     <app expr expr>
-     <var string>
-     <add expr expr>
-     <sub expr expr>
-     <mult expr expr>
-     <div expr expr>
-     <int integer>}))
+-- syntax of target language
+expr :=
+  algebraicDataMatcher
+    | lam string expr
+    | app expr expr
+    | var string
+    | add expr expr
+    | sub expr expr
+    | mult expr expr
+    | div expr expr
+    | int integer
 
-; lexeme
-;
-; (Here we need to convert pattern constructors into pattern functions
-;  in order to pass them to the function `lexeme`)
-(define $lexeme (lambda [$pf] (pattern-function [$x $p] (pf x <sc p>))))
-(define $L.number (lexeme (pattern-function [$x $p] <parse-number x p>)))
-(define $L.char   (lexeme (pattern-function [$x $p] <parse-char   x p>)))
-(define $L.string (lexeme (pattern-function [$x $p] <parse-string x p>)))
-(define $L.ident  (lexeme (pattern-function [$x $p] <parse-ident  x p>)))
+-- lexeme
+--
+-- (Here we need to convert pattern constructors into pattern functions
+--  in order to pass them to the function `lexeme`)
+lexeme pf := \x p => pf ~x (sc ~p)
+L.number  := lexeme (\x p => parseNumber ~x ~p)
+L.char    := lexeme (\x p => parseChar ~x ~p)
+L.string  := lexeme (\x p => parseString ~x ~p)
+L.ident   := lexeme (\x p => parseIdent ~x ~p)
 
-; helper functions for left associatives
-(define $leftOpExpr1
-  (lambda [$acc $tgt]
-    (match tgt parser
-      {[(L.char ,c#+ <opExpr2 $e $p>) (leftOpExpr1 <Add acc e> p)]
-       [(L.char ,c#- <opExpr2 $e $p>) (leftOpExpr1 <Sub acc e> p)]
-       [_ {[acc tgt]}]})))
+-- helper functions for left associatives
+leftOpExpr1 acc tgt :=
+  match tgt as parser with
+    | L.char #'+' (opExpr2 $e $p) -> leftOpExpr1 (Add acc e) p
+    | L.char #'-' (opExpr2 $e $p) -> leftOpExpr1 (Sub acc e) p
+    | _ -> [(acc, tgt)]
 
-(define $leftOpExpr2
-  (lambda [$acc $tgt]
-    (match tgt parser
-      {[(L.char ,c#* <appExpr $e $p>) (leftOpExpr2 <Mult acc e> p)]
-       [(L.char ,c#/ <appExpr $e $p>) (leftOpExpr2 <Div acc e> p)]
-       [_ {[acc tgt]}]})))
+leftOpExpr2 acc tgt :=
+  match tgt as parser with
+    | L.char #'*' (appExpr $e $p) -> leftOpExpr2 (Mult acc e) p
+    | L.char #'/' (appExpr $e $p) -> leftOpExpr2 (Div acc e) p
+    | _ -> [(acc, tgt)]
 
-(define $leftAppExpr
-  (lambda [$acc $tgt]
-    (match tgt parser
-      {[<atomExpr $e $p> (leftAppExpr <App acc e> p)]
-       [_ {[acc tgt]}]})))
+leftAppExpr acc tgt :=
+  match tgt as parser with
+    | atomExpr $e $p -> leftAppExpr (App acc e) p
+    | _ -> [(acc, tgt)]
 
-; the parser
-(define $parser
-  (matcher
-    {[<expr' $ $> [expr parser]
-      {[$tgt (match tgt parser
-               {[<opExpr1 $e $r>    {[e r]}]
-                [<lambdaExpr $e $r> {[e r]}]
-                [_ {}]})]}]
-     [<lambdaExpr $ $> [expr parser]
-      {[$tgt (match tgt parser
-               {[(L.char ,c#\\ (L.ident $x (L.string ,"->" <expr' $e $r>)))
-                 {[<Lam x e> r]}]
-                [_ {}]})]}]
+-- the parser
+parser :=
+  matcher
+    | expr' $ $ as (expr, parser) with
+      | $tgt ->
+        match tgt as parser with
+          | opExpr1 $e $r -> [(e, r)]
+          | lambdaExpr $e $r -> [(e, r)]
+          | _ -> []
+    | lambdaExpr $ $ as (expr, parser) with
+      | $tgt ->
+        match tgt as parser with
+          | L.char #'\\' (L.ident $x (L.string #"->" (expr' $e $r))) ->
+            [(Lam x e, r)]
+          | _ -> []
+    | opExpr1 $ $ as (expr, parser) with
+      | $tgt ->
+        match tgt as parser with
+          | opExpr2 $e $r -> leftOpExpr1 e r
+          | _ -> []
+    | opExpr2 $ $ as (expr, parser) with
+      | $tgt ->
+        match tgt as parser with
+          | appExpr $e $r -> leftOpExpr2 e r
+          | _ -> []
+    | appExpr $ $ as (expr, parser) with
+      | $tgt ->
+        match tgt as parser with
+          | atomExpr $e $r -> leftAppExpr e r
+          | _ -> []
+    | atomExpr $ $ as (expr, parser) with
+      | $tgt ->
+        match tgt as parser with
+          | L.number $n $r -> [(Int n, r)]
+          | L.ident $x $r -> [(Var x, r)]
+          | L.string #"(" (expr' $s (L.string #")" $r)) -> [(s, r)]
+          | _ -> []
 
-     [<opExpr1 $ $> [expr parser]
-      {[$tgt (match tgt parser
-               {[<opExpr2 $e $r> (leftOpExpr1 e r)]
-                [_ {}]})]}]
-     [<opExpr2 $ $> [expr parser]
-      {[$tgt (match tgt parser
-               {[<appExpr $e $r> (leftOpExpr2 e r)]
-                [_ {}]})]}]
-     [<appExpr $ $> [expr parser]
-      {[$tgt (match tgt parser
-               {[<atomExpr $e $r> (leftAppExpr e r)]
-                [_ {}]})]}]
-     [<atomExpr $ $> [expr parser]
-      {[$tgt (match tgt parser
-               {[(L.number $n $r) {[<Int n> r]}]
-                [(L.ident $x $r)  {[<Var x> r]}]
-                [(L.string ,"(" <expr' $s (L.string ,")" $r)>) {[s r]}]
-                [_ {}]})]}]
+    -- literals
+    | parseNumber $ $ as (integer, parser) with
+      | $tgt ->
+        match tgt as string with
+          | regex #"[0-9]+" [] $num $r -> [(read num, r)]
+          | _ -> []
+    | parseChar $ $ as (char, parser) with
+      | $tgt ->
+        match tgt as string with
+          | $c :: $r -> [(c, r)]
+          | _ -> []
+    | parseString $ $ as (string, parser) with
+      | $tgt ->
+        matchAll tgt as string with
+          | $s ++ $r -> (s, r)
+    | parseIdent $ $ as (string, parser) with
+      | $tgt ->
+        match tgt as string with
+          | regex #"[a-z][A-Za-z0-9]*" [] $x $r -> [(x, r)]
+          | _ -> []
 
-     ;; literals
-     [<parse-number $ $> [integer parser]
-      {[$tgt (match tgt string
-               {[<regex ,"[0-9]+" <nil> $num $r> {[(read num) r]}]
-                [_ {}]})]}]
-     [<parse-char $ $> [char parser]
-      {[$tgt (match tgt string
-               {[<cons $c $r> {[c r]}]
-                [_ {}]})]}]
-     [<parse-string $ $> [string parser]
-      {[$tgt (match-all tgt string
-               {[<join $s $r> [s r]]})]}]
-     [<parse-ident $ $> [string parser]
-      {[$tgt (match tgt string
-               {[<regex ,"[a-z][A-Za-z0-9]*" <nil> $x $r> {[x r]}]
-                [_ {}]})]}]
+    -- space consumer
+    | sc $ as (parser) with
+      | $tgt ->
+        match tgt as string with
+          | loop $i (1, _)
+              (?whitespace? :: ...)
+              ($r & !(?whitespace? :: _)) -> [r]
+          | _ -> []
+    | eof as () with
+      | $tgt -> if S.isEmpty tgt then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
 
-     ; space consumer
-     [<sc $> [parser]
-      {[$tgt (match tgt string
-               {[(loop $i [1 _]
-                       <cons ?whitespace? ...>
-                       (& $r !<cons ?whitespace? _>))
-                 {r}]
-                [_ {}]})]}]
-     [<eof> []
-      {[$tgt (if (S.empty? tgt) {[]} {})]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
 
-;;
-;; Utils
-;;
+--
+-- Utils
+--
 
-(define $digit?
-  (lambda [$c] (c.between? c#0 c#9 c)))
-(define $whitespace?
-  (lambda [$c] (any (eq? $ c) {c#  c#\n c#\t})))
+digit? c := c.between? '0' '9' c
 
-;;
-;; Tests
-;;
+whitespace? c := any 1#(%1 = c) [' ', '\n', '\t']
 
-; literals
-(assert-equal "literal"
-  (match "123 4" parser {[(L.number $n (L.number $m <eof>)) [n m]]})
-  [123 4])
-(assert-equal "literal"
-  (match "123 4" parser {[(L.number $n (L.number ,4 <eof>)) n]})
-  123)
-(assert-equal "literal"
-  (match "123 c" parser {[(L.number $n (L.char $c <eof>)) [n c]]})
-  [123 c#c])
-(assert-equal "literal"
-  (match "123 c" parser {[(L.number $n (L.string ,"c" <eof>)) n]})
-  123)
+--
+-- Tests
+--
 
-; expressions
-(assert-equal "expression"
-  (match "1 + 2 + 3" parser {[<expr' $n <eof>> n]}) ; left associative
-  <Add <Add <Int 1> <Int 2>> <Int 3>>)
-(assert-equal "expression"
-  (match "1 + 2 * 3" parser {[<expr' $n <eof>> n]})
-  <Add <Int 1> <Mult <Int 2> <Int 3>>>)
-(assert-equal "expression"
-  (match "(1 + 2) * 3" parser {[<expr' $n <eof>> n]})
-  <Mult <Add <Int 1> <Int 2>> <Int 3>>)
-(assert-equal "expression"
-  (match "\\x -> \\y -> x + y" parser {[<expr' $n <eof>> n]})
-  <Lam "x" <Lam "y" <Add <Var "x"> <Var "y">>>>)
-(assert-equal "expression"
-  (match "(\\x -> \\y -> x + y) 1 2" parser {[<expr' $n <eof>> n]})
-  <App <App <Lam "x" <Lam "y" <Add <Var "x"> <Var "y">>>> <Int 1>> <Int 2>>)
+-- literals
+assertEqual "literal"
+  (match "123 4" as parser with
+    | L.number $n (L.number $m eof) -> (n, m))
+  (123, 4)
+
+assertEqual "literal"
+  (match "123 4" as parser with
+    | L.number $n (L.number #4 eof) -> n)
+  123
+
+assertEqual "literal"
+  (match "123 c" as parser with
+    | L.number $n (L.char $c eof) -> (n, c))
+  (123, 'c')
+
+assertEqual "literal"
+  (match "123 c" as parser with
+    | L.number $n (L.string #"c" eof) -> n)
+  123
+
+-- expressions
+assertEqual "expression"
+  (match "1 + 2 + 3" as parser with
+    | expr' $n eof -> n)
+  (Add (Add (Int 1) (Int 2)) (Int 3))
+
+assertEqual "expression"
+  (match "1 + 2 * 3" as parser with
+    | expr' $n eof -> n)
+  (Add (Int 1) (Mult (Int 2) (Int 3)))
+
+assertEqual "expression"
+  (match "(1 + 2) * 3" as parser with
+    | expr' $n eof -> n)
+  (Mult (Add (Int 1) (Int 2)) (Int 3))
+
+assertEqual "expression"
+  (match "\\x -> \\y -> x + y" as parser with
+    | expr' $n eof -> n)
+  (Lam "x" (Lam "y" (Add (Var "x") (Var "y"))))
+
+assertEqual "expression"
+  (match "(\\x -> \\y -> x + y) 1 2" as parser with
+    | expr' $n eof -> n)
+  (App (App (Lam "x" (Lam "y" (Add (Var "x") (Var "y")))) (Int 1)) (Int 2))
